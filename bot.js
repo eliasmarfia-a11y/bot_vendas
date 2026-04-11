@@ -33,7 +33,7 @@ server.listen(PORT, () => {
 });
 // --------------------------------------------------
 
-const sqlite = new Database('vendas.db');
+const sqlite = new Database('/tmp/vendas.db');
 const db = drizzle(sqlite);
 
 const client = new Client({
@@ -246,5 +246,3 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-_
