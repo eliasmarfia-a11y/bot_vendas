@@ -33,7 +33,7 @@ server.listen(PORT, () => {
 });
 // --------------------------------------------------
 
-const sqlite = new Database('vendas.db');
+const sqlite = new Database(':memory:');
 const db = drizzle(sqlite);
 
 const client = new Client({
