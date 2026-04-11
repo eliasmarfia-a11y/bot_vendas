@@ -9,7 +9,7 @@ const {
 // --- SERVIDOR HTTP (ANTI-SLEEP RENDER) ---
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Sistema de Vendas Simplificado Online!\n');
+  res.end('Sistema de Vendas Ultra Rapido Online!\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor HTTP na porta ${PORT}`));
@@ -46,19 +46,33 @@ const commands = [
 ].map(cmd => cmd.toJSON());
 
 client.once('ready', async () => {
-  console.log(`🚀 Bot Simplificado online: ${client.user.tag}`);
+  console.log(`🚀 Bot Ultra Rapido online: ${client.user.tag}`);
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try { await rest.put(Routes.applicationCommands(client.user.id), { body: commands }); } catch (e) { console.error(e); }
 });
 
 client.on('interactionCreate', async (interaction) => {
+  // RESPOSTA INSTANTÂNEA PARA EVITAR "APLICATIVO NÃO RESPONDEU"
+  if (interaction.isChatInputCommand() || interaction.isButton() || interaction.isStringSelectMenu()) {
+    if (!interaction.isModalSubmit()) {
+        // Alguns comandos precisam de resposta imediata, outros de deferReply
+        if (interaction.commandName === 'loja' || interaction.commandName === 'gerenciar' || interaction.customId?.startsWith('buy_')) {
+            await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        }
+    }
+  }
+
   if (interaction.isChatInputCommand()) {
     const { commandName } = interaction;
 
     if (commandName === 'setup') {
-      const category = await interaction.guild.channels.create({ name: '🛒 ÁREA DE VENDAS', type: ChannelType.GuildCategory });
-      settings.category_id = category.id;
-      await interaction.reply({ content: `✅ Setup concluído! Categoria de tickets criada.`, ephemeral: true });
+      try {
+        const category = await interaction.guild.channels.create({ name: '🛒 ÁREA DE VENDAS', type: ChannelType.GuildCategory });
+        settings.category_id = category.id;
+        await interaction.reply({ content: `✅ Setup concluído! Categoria de tickets criada.`, ephemeral: true });
+      } catch (e) {
+        await interaction.reply({ content: '❌ Erro ao criar categoria. Verifique se o bot tem permissão de Administrador.', ephemeral: true });
+      }
     }
 
     if (commandName === 'admin') {
@@ -71,7 +85,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (commandName === 'gerenciar') {
-      if (products.length === 0) return interaction.reply({ content: '❌ Não há produtos para gerenciar.', ephemeral: true });
+      if (products.length === 0) return interaction.editReply({ content: '❌ Não há produtos para gerenciar.' });
       
       const embed = new EmbedBuilder()
         .setTitle('🛠️ Gerenciamento de Produtos')
@@ -84,11 +98,11 @@ client.on('interactionCreate', async (interaction) => {
         .addOptions(products.map((p, i) => ({ label: p.name, description: `R$ ${p.price.toFixed(2)}`, value: i.toString() })));
 
       const row = new ActionRowBuilder().addComponents(select);
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      await interaction.editReply({ embeds: [embed], components: [row] });
     }
 
     if (commandName === 'loja') {
-      if (products.length === 0) return interaction.reply({ content: '❌ Sem estoque.', ephemeral: true });
+      if (products.length === 0) return interaction.editReply({ content: '❌ Sem estoque.' });
       
       const embed = new EmbedBuilder()
         .setTitle('🛒 NOSSO CATÁLOGO')
@@ -107,7 +121,7 @@ client.on('interactionCreate', async (interaction) => {
       });
       rows.push(currentRow);
 
-      await interaction.reply({ embeds: [embed], components: rows });
+      await interaction.editReply({ embeds: [embed], components: rows });
     }
   }
 
@@ -129,9 +143,7 @@ client.on('interactionCreate', async (interaction) => {
         new ButtonBuilder().setCustomId('delete_confirm').setLabel('Apagar').setStyle(ButtonStyle.Danger)
       );
 
-      // Armazenar temporariamente o ID para apagar
       client.lastManagedIdx = idx;
-
       await interaction.update({ embeds: [embed], components: [row] });
     }
   }
@@ -172,7 +184,7 @@ client.on('interactionCreate', async (interaction) => {
       const idx = client.lastManagedIdx;
       const name = products[idx].name;
       products.splice(idx, 1);
-      await interaction.update({ content: `✅ Produto **${name}** apagado com sucesso!`, embeds: [], components: [] });
+      await interaction.update({ content: `✅ Produto **${name}** apagado!`, embeds: [], components: [] });
     }
 
     if (interaction.customId.startsWith('buy_')) {
@@ -180,23 +192,27 @@ client.on('interactionCreate', async (interaction) => {
       const p = products[idx];
       const pixCode = generatePix(settings.pix_key, p.price, settings.pix_name);
 
-      const ticket = await interaction.guild.channels.create({
-        name: `🛒-${interaction.user.username}`,
-        type: ChannelType.GuildText,
-        parent: settings.category_id,
-        permissionOverwrites: [
-          { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-          { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        ],
-      });
+      try {
+        const ticket = await interaction.guild.channels.create({
+          name: `🛒-${interaction.user.username}`,
+          type: ChannelType.GuildText,
+          parent: settings.category_id,
+          permissionOverwrites: [
+            { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+          ],
+        });
 
-      const embed = new EmbedBuilder()
-        .setTitle('💳 Checkout de Pagamento')
-        .setDescription(`Olá ${interaction.user}, você está comprando **${p.name}**.\n\n💰 **Valor:** R$ ${p.price.toFixed(2)}\n\n**PIX COPIA E COLA:**\n\`\`\`${pixCode}\`\`\`\n\n*Pague e envie o comprovante aqui.*`)
-        .setColor('#FEE75C');
+        const embed = new EmbedBuilder()
+          .setTitle('💳 Checkout de Pagamento')
+          .setDescription(`Olá ${interaction.user}, você está comprando **${p.name}**.\n\n💰 **Valor:** R$ ${p.price.toFixed(2)}\n\n**PIX COPIA E COLA:**\n\`\`\`${pixCode}\`\`\`\n\n*Pague e envie o comprovante aqui.*`)
+          .setColor('#FEE75C');
 
-      await ticket.send({ content: `${interaction.user}`, embeds: [embed] });
-      await interaction.reply({ content: `✅ Ticket criado em ${ticket}!`, ephemeral: true });
+        await ticket.send({ content: `${interaction.user}`, embeds: [embed] });
+        await interaction.editReply({ content: `✅ Ticket criado em ${ticket}!` });
+      } catch (e) {
+        await interaction.editReply({ content: '❌ Erro ao criar ticket. Use `/setup` primeiro!' });
+      }
     }
   }
 
