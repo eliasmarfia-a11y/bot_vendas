@@ -1,4 +1,5 @@
 require('dotenv').config();
+const http = require('http');
 const { 
   Client, 
   GatewayIntentBits, 
@@ -19,6 +20,18 @@ const { drizzle } = require('drizzle-orm/better-sqlite3');
 const Database = require('better-sqlite3');
 const { products, settings } = require('./schema');
 const { eq } = require('drizzle-orm');
+
+// --- SERVIDOR HTTP PARA O RENDER (PLANO GRÁTIS) ---
+// Isso faz o Render achar que o bot é um site e não dar erro de "Failed"
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot de Vendas Online 24h!\n');
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Servidor HTTP rodando na porta ${PORT}`);
+});
+// --------------------------------------------------
 
 const sqlite = new Database('vendas.db');
 const db = drizzle(sqlite);
