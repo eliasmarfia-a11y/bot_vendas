@@ -9,13 +9,13 @@ const {
 // --- SERVIDOR HTTP (ANTI-SLEEP RENDER) ---
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Sistema de Vendas com Gestão Total Online!\n');
+  res.end('Sistema de Vendas Simplificado Online!\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor HTTP na porta ${PORT}`));
 
 // --- BANCO DE DADOS EM MEMÓRIA ---
-let products = []; // { name, price, stock, category }
+let products = []; 
 let settings = { 
   pix_key: 'Não configurada',
   pix_name: 'Loja Discord',
@@ -46,7 +46,7 @@ const commands = [
 ].map(cmd => cmd.toJSON());
 
 client.once('ready', async () => {
-  console.log(`🚀 Bot de Gestão Total online: ${client.user.tag}`);
+  console.log(`🚀 Bot Simplificado online: ${client.user.tag}`);
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try { await rest.put(Routes.applicationCommands(client.user.id), { body: commands }); } catch (e) { console.error(e); }
 });
@@ -81,7 +81,7 @@ client.on('interactionCreate', async (interaction) => {
       const select = new StringSelectMenuBuilder()
         .setCustomId('select_manage')
         .setPlaceholder('Escolha um produto...')
-        .addOptions(products.map((p, i) => ({ label: p.name, description: `R$ ${p.price.toFixed(2)} | Cat: ${p.category}`, value: i.toString() })));
+        .addOptions(products.map((p, i) => ({ label: p.name, description: `R$ ${p.price.toFixed(2)}`, value: i.toString() })));
 
       const row = new ActionRowBuilder().addComponents(select);
       await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
@@ -90,48 +90,28 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'loja') {
       if (products.length === 0) return interaction.reply({ content: '❌ Sem estoque.', ephemeral: true });
       
-      const categories = [...new Set(products.map(p => p.category))];
       const embed = new EmbedBuilder()
         .setTitle('🛒 NOSSO CATÁLOGO')
-        .setDescription('Selecione uma categoria abaixo para ver os produtos disponíveis.')
+        .setDescription('Confira nossos produtos abaixo e clique no botão para comprar.')
         .setColor('#2F3136');
-
-      const select = new StringSelectMenuBuilder()
-        .setCustomId('select_category')
-        .setPlaceholder('Escolha uma categoria...')
-        .addOptions(categories.map(cat => ({ label: cat, value: cat, emoji: '📁' })));
-
-      const row = new ActionRowBuilder().addComponents(select);
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-    }
-  }
-
-  if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === 'select_category') {
-      const category = interaction.values[0];
-      const filtered = products.filter(p => p.category === category);
-      
-      const embed = new EmbedBuilder()
-        .setTitle(`📁 Categoria: ${category}`)
-        .setDescription(`Confira os produtos de **${category}** abaixo:`)
-        .setColor('#5865F2');
 
       const rows = [];
       let currentRow = new ActionRowBuilder();
 
-      filtered.forEach((p) => {
-        const globalIdx = products.indexOf(p);
+      products.forEach((p, i) => {
         embed.addFields({ name: `🎁 ${p.name}`, value: `💵 **R$ ${p.price.toFixed(2)}** | Estoque: ${p.stock}` });
-        const btn = new ButtonBuilder().setCustomId(`buy_${globalIdx}`).setLabel(`Comprar ${p.name}`).setStyle(ButtonStyle.Primary).setDisabled(p.stock <= 0);
+        const btn = new ButtonBuilder().setCustomId(`buy_${i}`).setLabel(`Comprar ${p.name}`).setStyle(ButtonStyle.Primary).setDisabled(p.stock <= 0);
         
         if (currentRow.components.length < 5) currentRow.addComponents(btn);
         else { rows.push(currentRow); currentRow = new ActionRowBuilder().addComponents(btn); }
       });
       rows.push(currentRow);
 
-      await interaction.update({ embeds: [embed], components: rows });
+      await interaction.reply({ embeds: [embed], components: rows });
     }
+  }
 
+  if (interaction.isStringSelectMenu()) {
     if (interaction.customId === 'select_manage') {
       const idx = parseInt(interaction.values[0]);
       const p = products[idx];
@@ -140,15 +120,17 @@ client.on('interactionCreate', async (interaction) => {
         .setTitle(`📝 Gerenciando: ${p.name}`)
         .addFields(
           { name: '💵 Preço', value: `R$ ${p.price.toFixed(2)}`, inline: true },
-          { name: '📦 Estoque', value: `${p.stock}`, inline: true },
-          { name: '📁 Categoria', value: `${p.category}`, inline: true }
+          { name: '📦 Estoque', value: `${p.stock}`, inline: true }
         )
         .setColor('#FFFF00');
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`edit_${idx}`).setLabel('Editar').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`delete_${idx}`).setLabel('Apagar').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('delete_confirm').setLabel('Apagar').setStyle(ButtonStyle.Danger)
       );
+
+      // Armazenar temporariamente o ID para apagar
+      client.lastManagedIdx = idx;
 
       await interaction.update({ embeds: [embed], components: [row] });
     }
@@ -160,8 +142,7 @@ client.on('interactionCreate', async (interaction) => {
       modal.addComponents(
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('n').setLabel('Nome').setStyle(TextInputStyle.Short).setRequired(true)),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('p').setLabel('Preço').setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s').setLabel('Estoque').setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('c').setLabel('Categoria').setStyle(TextInputStyle.Short).setRequired(true))
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s').setLabel('Estoque').setStyle(TextInputStyle.Short).setRequired(true))
       );
       await interaction.showModal(modal);
     }
@@ -182,16 +163,16 @@ client.on('interactionCreate', async (interaction) => {
       modal.addComponents(
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('n').setLabel('Nome').setValue(p.name).setStyle(TextInputStyle.Short).setRequired(true)),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('p').setLabel('Preço').setValue(p.price.toString()).setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s').setLabel('Estoque').setValue(p.stock.toString()).setStyle(TextInputStyle.Short).setRequired(true)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('c').setLabel('Categoria').setValue(p.category).setStyle(TextInputStyle.Short).setRequired(true))
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s').setLabel('Estoque').setValue(p.stock.toString()).setStyle(TextInputStyle.Short).setRequired(true))
       );
       await interaction.showModal(modal);
     }
 
-    if (interaction.customId.startsWith('delete_')) {
-      const idx = parseInt(interaction.customId.split('_')[1]);
+    if (interaction.customId === 'delete_confirm') {
+      const idx = client.lastManagedIdx;
+      const name = products[idx].name;
       products.splice(idx, 1);
-      await interaction.update({ content: '✅ Produto apagado com sucesso!', embeds: [], components: [] });
+      await interaction.update({ content: `✅ Produto **${name}** apagado com sucesso!`, embeds: [], components: [] });
     }
 
     if (interaction.customId.startsWith('buy_')) {
@@ -224,8 +205,7 @@ client.on('interactionCreate', async (interaction) => {
       const name = interaction.fields.getTextInputValue('n');
       const price = parseFloat(interaction.fields.getTextInputValue('p').replace(',', '.'));
       const stock = parseInt(interaction.fields.getTextInputValue('s'));
-      const category = interaction.fields.getTextInputValue('c');
-      products.push({ name, price, stock, category });
+      products.push({ name, price, stock });
       await interaction.reply({ content: `✅ Produto **${name}** adicionado!`, ephemeral: true });
     }
     if (interaction.customId.startsWith('mod_edit_')) {
@@ -233,7 +213,6 @@ client.on('interactionCreate', async (interaction) => {
       products[idx].name = interaction.fields.getTextInputValue('n');
       products[idx].price = parseFloat(interaction.fields.getTextInputValue('p').replace(',', '.'));
       products[idx].stock = parseInt(interaction.fields.getTextInputValue('s'));
-      products[idx].category = interaction.fields.getTextInputValue('c');
       await interaction.reply({ content: `✅ Produto **${products[idx].name}** atualizado!`, ephemeral: true });
     }
     if (interaction.customId === 'mod_pix') {
@@ -245,3 +224,4 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+        
